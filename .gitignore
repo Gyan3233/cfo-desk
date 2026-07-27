@@ -1,0 +1,61 @@
+# ── secrets & credentials ─────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+credentials/
+credentials.json
+token.json
+service_account*.json
+*.pem
+*.key
+
+# ── generated databases ───────────────────────────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+data/invoices.db
+data/auth.db
+
+# ── virtual environments ──────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Python ────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# ── Streamlit ─────────────────────────────────────────────────────────────
+.streamlit/secrets.toml
+
+# ── IDE / editor ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── scan state / logs ─────────────────────────────────────────────────────
+.last_scan
+*.log
+logs/
+daily_scan.log
+
+# ── ML artefacts ──────────────────────────────────────────────────────────
+*.pkl
+*.joblib
+models/
+
+# ── OS / misc ─────────────────────────────────────────────────────────────
+*.tmp
+*.bak

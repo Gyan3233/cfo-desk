@@ -1,0 +1,6 @@
+{
+  "template_name": "Beacon Retail (short & friendly)",
+  "match": {"emails": ["ap@beaconretail.com"], "name_contains": ["beacon"]},
+  "subject": "Quick reminder: invoice {invoice_number} \u00b7 {amount_fmt}",
+  "body": "Hi {contact_name},\n\nJust a quick nudge \u2014 invoice {invoice_number} ({amount_fmt}) {days_text}.\n\nIf it's already in your payment run, great, please ignore this! If anything is blocking it on your side, reply here and we'll sort it out quickly.\n\nThanks,\n{sender_name}\n{sender_company}"
+}

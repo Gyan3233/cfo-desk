@@ -1,0 +1,6 @@
+{
+  "template_name": "Default (all clients)",
+  "match": {"emails": [], "name_contains": []},
+  "subject": "Payment reminder \u2014 Invoice {invoice_number} ({amount_fmt})",
+  "body": "Dear {contact_name},\n\nThis is a friendly reminder that invoice {invoice_number} for {amount_fmt} {days_text}.\n\nIf payment has already been made, please disregard this message. Otherwise, we would appreciate it if you could arrange payment at your earliest convenience.\n\nPlease don't hesitate to reach out if you have any questions about this invoice.\n\nBest regards,\n{sender_name}\n{sender_company}"
+}

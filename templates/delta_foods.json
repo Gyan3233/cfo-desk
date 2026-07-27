@@ -1,0 +1,6 @@
+{
+  "template_name": "Delta Foods (statement-style with escalation note)",
+  "match": {"emails": ["finance@deltafoods.com"], "name_contains": ["delta"]},
+  "subject": "Statement of account \u2014 {invoice_number} {days_text}",
+  "body": "Dear {contact_name},\n\nPlease find below the current status of your account with {sender_company}:\n\n  Invoice number : {invoice_number}\n  Invoice date   : {issue_date}\n  Amount due     : {amount_fmt}\n  Status         : {days_text}\n\nWe request settlement of the above at the earliest. Kindly share the payment reference / UTR once processed so we can reconcile promptly. If the invoice remains unpaid 15 days past due, it will be escalated to our credit control team as per policy.\n\nWarm regards,\n{sender_name}\n{sender_company}"
+}

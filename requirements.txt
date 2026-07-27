@@ -1,0 +1,33 @@
+# CFO Copilot — production dependencies
+# Pinned to versions verified to install together as of July 2026.
+# Bump these later carefully — Streamlit + pandas + scikit-learn are the
+# ones most likely to break something across a major version.
+
+# ── Core UI ─────────────────────────────────────────────────────────────
+streamlit>=1.36,<2.0
+streamlit-float>=0.3.4
+
+# ── Data ────────────────────────────────────────────────────────────────
+pandas>=2.2,<3.0
+numpy>=1.26,<3.0
+openpyxl>=3.1,<4.0
+
+# ── Charts ──────────────────────────────────────────────────────────────
+plotly>=5.20
+
+# ── ML ──────────────────────────────────────────────────────────────────
+scikit-learn>=1.4
+
+# ── Background jobs ─────────────────────────────────────────────────────
+apscheduler>=3.10,<4.0
+tzlocal>=5.0
+
+# ── Env + HTTP ──────────────────────────────────────────────────────────
+python-dotenv>=1.0
+requests>=2.31
+
+# ── Google API (Gmail agent) ────────────────────────────────────────────
+google-auth>=2.29
+google-auth-oauthlib>=1.2
+google-auth-httplib2>=0.2
+google-api-python-client>=2.128

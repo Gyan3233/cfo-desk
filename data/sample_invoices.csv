@@ -1,0 +1,4 @@
+client_name,client_email,contact_name,invoice_number,amount,currency,issue_date,due_date,notes
+Acme Industrial,accounts@acme-industrial.com,Rohan Mehta,INV-CSV-001,15250.00,USD,2026-06-15,2026-07-20,Q2 maintenance contract
+Beacon Retail,ap@beaconretail.com,Sarah Chen,INV-CSV-002,8975.50,USD,2026-06-20,2026-07-15,POS hardware batch 2
+Delta Foods,finance@deltafoods.com,Priya Nair,INV-CSV-003,12400.75,USD,2026-06-25,2026-07-28,Cold-chain logistics June

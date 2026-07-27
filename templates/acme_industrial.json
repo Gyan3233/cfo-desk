@@ -1,0 +1,6 @@
+{
+  "template_name": "Acme Industrial (formal, PO-referenced)",
+  "match": {"emails": ["accounts@acme-industrial.com"], "name_contains": ["acme"]},
+  "subject": "[{sender_company}] Invoice {invoice_number} \u2013 Payment Due Notification",
+  "body": "Dear {contact_name},\n\nWe hope this message finds you well.\n\nAs per our records, invoice {invoice_number} issued on {issue_date} for {amount_fmt} {days_text}. In line with the payment terms agreed under our master service agreement, we kindly request that the remittance be processed to the bank account listed on the invoice.\n\nShould your accounts payable team require a duplicate copy of the invoice or supporting documentation, we will be glad to provide it.\n\nThank you for your continued partnership.\n\nSincerely,\n{sender_name}\n{sender_company}"
+}
