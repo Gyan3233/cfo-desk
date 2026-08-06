@@ -45,9 +45,24 @@ from datetime import datetime
 
 import streamlit as st
 
-DB_PATH = os.getenv("AUTH_DB_PATH", "auth.db")
-ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "").strip().lower()
-SESSION_TIMEOUT_MIN = int(os.getenv("SESSION_TIMEOUT_MIN", "60"))
+def _cfg(key: str, default: str = "") -> str:
+    """Read config from the environment first, then Streamlit secrets.
+    Streamlit Community Cloud keeps top-level secrets in st.secrets and does
+    not always mirror them into os.environ, so we check both."""
+    v = os.getenv(key)
+    if v:
+        return v
+    try:
+        if key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return default
+
+
+DB_PATH = _cfg("AUTH_DB_PATH", "auth.db")
+ADMIN_EMAIL = _cfg("ADMIN_EMAIL", "").strip().lower()
+SESSION_TIMEOUT_MIN = int(_cfg("SESSION_TIMEOUT_MIN", "60"))
 
 PBKDF2_ITERATIONS = 200_000
 MAX_FAILED_ATTEMPTS = 5
@@ -89,11 +104,14 @@ def init_auth_db() -> None:
             """
         )
         # Bootstrap: guarantee the configured admin can always sign up.
-        if ADMIN_EMAIL:
+        # Resolve at runtime (not just module import) so it works on Streamlit
+        # Cloud, where secrets may not be in os.environ at import time.
+        admin = _cfg("ADMIN_EMAIL", "").strip().lower()
+        if admin:
             c.execute(
                 "INSERT OR IGNORE INTO allowlist (email, role, added_by, added_at) "
                 "VALUES (?, 'admin', 'bootstrap', ?)",
-                (ADMIN_EMAIL, datetime.utcnow().isoformat()),
+                (admin, datetime.utcnow().isoformat()),
             )
 
 
@@ -123,6 +141,18 @@ def signup(email: str, full_name: str, password: str) -> tuple[bool, str]:
         return False, "Enter a valid email address."
     if len(password) < 10:
         return False, "Password must be at least 10 characters."
+
+    # Final safeguard: make sure the configured admin is always allowlisted at
+    # the moment they sign up (covers Cloud cases where the init-time bootstrap
+    # ran before the secret was available).
+    admin = _cfg("ADMIN_EMAIL", "").strip().lower()
+    if admin and email == admin:
+        with _conn() as c:
+            c.execute(
+                "INSERT OR IGNORE INTO allowlist (email, role, added_by, added_at) "
+                "VALUES (?, 'admin', 'bootstrap', ?)",
+                (admin, datetime.utcnow().isoformat()),
+            )
 
     entry = is_allowlisted(email)
     if entry is None:
@@ -352,6 +382,15 @@ LOGIN_CSS = """
           0 1px 0 rgba(255,255,255,.03) inset,
           0 24px 60px rgba(0,0,0,.5);
       max-width: 440px; margin: 32px auto 0 auto;
+  }
+  /* The `<div class='login-card'>` opening tag renders as an EMPTY styled box
+     (Streamlit closes the unclosed div within its own markdown block, and the
+     tabs/form render as siblings below it). Hide that empty orphan so only the
+     real content shows. A card that actually contains widgets is not :empty. */
+  .login-card:empty {
+      display: none !important;
+      padding: 0 !important; margin: 0 !important; border: none !important;
+      background: none !important; box-shadow: none !important; min-height: 0 !important;
   }
 
   /* Field labels — muted cream, small caps */
