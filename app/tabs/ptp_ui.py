@@ -49,7 +49,7 @@ def render_tab1_ptp_summary() -> None:
     ensure_schema()
     summ = ptp_summary()
 
-    st.markdown("#### ◆ Promise-to-Pay (PTP) Analysis",
+    st.markdown("#### <span class='sec-dia'>◆</span> Promise-to-Pay (PTP) Analysis", unsafe_allow_html=True,
                 help="A Promise-to-Pay is a client commitment to pay AFTER "
                      "the invoice's current due date. Confirmations that "
                      "the client will pay on or before the due date do NOT "
@@ -82,7 +82,7 @@ def render_tab1_ptp_summary() -> None:
     c1, c2 = st.columns([1, 1])
 
     with c1:
-        st.markdown("**◆ Extension request histogram**")
+        st.markdown("**<span class='sec-dia'>◆</span> Extension request histogram**", unsafe_allow_html=True)
         st.caption("How many invoices had 1 vs 2 vs 3+ promise-to-pay events. "
                    "Long tail = collections process needs to escalate sooner.")
         hist = summ["extension_histogram"]
@@ -103,7 +103,7 @@ def render_tab1_ptp_summary() -> None:
             st.plotly_chart(fig, use_container_width=True)
 
     with c2:
-        st.markdown("**◆ Top 10 clients by total days extended**")
+        st.markdown("**<span class='sec-dia'>◆</span> Top 10 clients by total days extended**", unsafe_allow_html=True)
         st.caption("Sum of days-extended across every PTP event by client. "
                    "These are the clients dragging your DSO the most.")
         top = summ["top_extenders"]

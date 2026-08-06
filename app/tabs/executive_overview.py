@@ -59,18 +59,55 @@ def _kpi(col, label: str, value: str, help_text: str, delta: str | None = None):
         st.metric(label=label, value=value, delta=delta, help=help_text)
 
 
+def _kpi_card(col, label: str, value: str, sub: str = "",
+              tone: str = "neutral", help_text: str = "") -> None:
+    """Custom KPI tile with a colour-coded sub-label (tone: neutral|good|bad).
+
+    Uses custom HTML rather than st.metric because st.metric can't tint the
+    sub-label independently of the value's sign. The ⓘ keeps its explanation
+    via a hover tooltip.
+    """
+    import html as _html
+    info = (f"<span class='kpi-tile-info' title=\"{_html.escape(help_text)}\">ⓘ</span>"
+            if help_text else "")
+    sub_html = f"<div class='kpi-tile-sub {tone}'>{sub}</div>" if sub else ""
+    with col:
+        st.markdown(
+            f"<div class='kpi-tile'>"
+            f"<div class='kpi-tile-label'>{label}{info}</div>"
+            f"<div class='kpi-tile-value'>{value}</div>"
+            f"{sub_html}</div>",
+            unsafe_allow_html=True,
+        )
+
+
 def _auto_load_if_needed():
     """Silent initial load: if the DB has zero invoices but the workbook is
     present, push it in. Runs at most once per session.
 
-    v3.5.1: made resilient to two Streamlit-Cloud-specific edge cases —
-    (a) DB file exists but the `invoices` table hasn't been created yet
+    v3.5.2: also calls init_db() up-front to guarantee every table exists.
+    Locally this is a no-op (tables were created on your first run months
+    ago). On Streamlit Cloud the ephemeral filesystem gives a fresh empty
+    .db file after every restart, so the schema really does need to be
+    (re-)created before anything else touches the DB.
+
+    Made resilient to two Streamlit-Cloud-specific edge cases:
+    (a) DB file exists but tables haven't been created yet
         (fresh SQLite in an ephemeral filesystem), and
     (b) workbook path is set but the file itself isn't there
         (deployed without the stub demo).
     Either now shows a friendly warning instead of crashing.
     """
     if st.session_state.get("_auto_load_done"):
+        return
+
+    # Ensure schema exists — cheap no-op if the tables are already there.
+    try:
+        from core.database import init_db
+        init_db(DB_PATH)
+    except Exception as e:
+        st.error(f"Database initialisation failed: {e}")
+        st.session_state["_auto_load_done"] = True
         return
 
     workbook_present = Path(XLSX_PATH).exists()
@@ -312,30 +349,48 @@ def render_tab1() -> None:
 
     # ── PRIMARY KPI STRIP ──────────────────────────────────────────────
     c1, c2, c3, c4, c5, c6 = st.columns(6)
-    _kpi(c1, "Total Outstanding", money(k["total_outstanding"]),
-         kpi_help("total_outstanding"))
-    _kpi(c2, "Overdue", money(k["overdue_amount"]),
-         kpi_help("overdue_amount"),
-         delta=f"{k['overdue_count']} invoices")
-    _kpi(c3, "Large Overdues (>₹50K)", f"{k['overdue_over_50k']}",
-         kpi_help("overdue_over_50k"))
-    _kpi(c4, "DSO (90d)",
-         f"{k['dso_days']:.1f}d" if k.get("dso_days") else "—",
-         kpi_help("dso_days"))
-    _kpi(c5, "On-time %",
-         f"{k['on_time_rate']:.1f}%" if k.get("on_time_rate") else "—",
-         kpi_help("on_time_rate"))
-    _kpi(c6, "Effective # Clients",
-         f"{k['effective_clients']:.1f}",
-         kpi_help("effective_clients"),
-         delta=f"HHI {k['hhi']:.0f}")
+
+    _kpi_card(c1, "Total Outstanding", money(k["total_outstanding"]),
+              f"{k['open_invoices']:,} open invoices", "neutral",
+              kpi_help("total_outstanding"))
+
+    _kpi_card(c2, "Overdue", money(k["overdue_amount"]),
+              f"▲ {k['overdue_count']:,} invoices", "bad",
+              kpi_help("overdue_amount"))
+
+    _kpi_card(c3, "Large Overdues (&gt;₹50K)", f"{k['overdue_over_50k']}",
+              "&gt; ₹50K each", "neutral", kpi_help("overdue_over_50k"))
+
+    dso = k.get("dso_days")
+    if dso:
+        dso_sub, dso_tone = (("Fast", "good") if dso < 40 else
+                             ("Healthy", "neutral") if dso < 60 else
+                             ("Elevated", "bad"))
+    else:
+        dso_sub, dso_tone = "no closed invoices", "neutral"
+    _kpi_card(c4, "DSO (90D)", f"{dso:.1f}d" if dso else "—",
+              dso_sub, dso_tone, kpi_help("dso_days"))
+
+    otr = k.get("on_time_rate")
+    if otr:
+        otr_sub, otr_tone = (("Best-in-class", "good") if otr > 85 else
+                             ("Healthy", "good") if otr > 70 else
+                             ("Needs work", "bad") if otr > 50 else
+                             ("Concerning", "bad"))
+    else:
+        otr_sub, otr_tone = "—", "neutral"
+    _kpi_card(c5, "On-time %", f"{otr:.1f}%" if otr else "—",
+              otr_sub, otr_tone, kpi_help("on_time_rate"))
+
+    _kpi_card(c6, "Effective # Clients", f"{k['effective_clients']:.1f}",
+              f"HHI {k['hhi']:.0f}", "neutral", kpi_help("effective_clients"))
 
     st.divider()
 
     # ── AR AGING + REMINDER OUTCOMES ───────────────────────────────────
     ac, rc = st.columns([1.6, 1])
     with ac:
-        st.markdown("#### ◆ AR Aging",
+        st.markdown("#### <span class='sec-dia'>◆</span> AR Aging", unsafe_allow_html=True,
                     help="Outstanding balance bucketed by days past due date. "
                          "Everything to the right of 'Current' is money you "
                          "should already have collected.")
@@ -356,7 +411,7 @@ def render_tab1() -> None:
             st.plotly_chart(fig, use_container_width=True)
 
     with rc:
-        st.markdown("#### ◆ Reminder Outcomes",
+        st.markdown("#### <span class='sec-dia'>◆</span> Reminder Outcomes", unsafe_allow_html=True,
                     help="Whether reminders are actually working. We track "
                          "sent reminders and whether the invoice moved to "
                          "'paid' within 7 days. Response rate = paid ÷ sent. "
@@ -379,7 +434,7 @@ def render_tab1() -> None:
     # ── DSO TREND + TOP CLIENTS ────────────────────────────────────────
     dc, tc = st.columns([1.6, 1])
     with dc:
-        st.markdown("#### ◆ DSO trend  · 30-day rolling",
+        st.markdown("#### <span class='sec-dia'>◆</span> DSO trend  · 30-day rolling", unsafe_allow_html=True,
                     help="Days Sales Outstanding, rolling 30-day mean over "
                          "the last 6 months. Trending up = collections are "
                          "slipping; trending down = tightening.")
@@ -399,7 +454,7 @@ def render_tab1() -> None:
             st.plotly_chart(fig2, use_container_width=True)
 
     with tc:
-        st.markdown("#### ◆ Top clients · outstanding",
+        st.markdown("#### <span class='sec-dia'>◆</span> Top clients · outstanding", unsafe_allow_html=True,
                     help="Your 10 largest outstanding balances. "
                          "Concentration risk lives here — one client walking "
                          "would take a bar off this chart.")
@@ -409,7 +464,7 @@ def render_tab1() -> None:
         else:
             fig3 = go.Figure()
             fig3.add_bar(x=tops["Balance"], y=tops["Customer Name"],
-                         orientation="h", marker_color="#0b2e4f",
+                         orientation="h", marker_color="#c9a961",
                          text=[f"{money(b)}  ({p:.1f}%)"
                                for b, p in zip(tops["Balance"], tops["pct"])],
                          textposition="outside")
@@ -423,7 +478,7 @@ def render_tab1() -> None:
     # ── PAYMENT MODE + SALESPERSON LEADERBOARD ─────────────────────────
     pc, sc = st.columns(2)
     with pc:
-        st.markdown("#### ◆ Payment Mode mix · last 90 days",
+        st.markdown("#### <span class='sec-dia'>◆</span> Payment Mode mix · last 90 days", unsafe_allow_html=True,
                     help="How clients paid you over the last 90 days. "
                          "Median days-to-pay per mode is often revealing — "
                          "cheque payers tend to be materially slower than "
@@ -444,7 +499,7 @@ def render_tab1() -> None:
                           hide_index=True, use_container_width=True)
 
     with sc:
-        st.markdown("#### ◆ Salesperson leaderboard",
+        st.markdown("#### <span class='sec-dia'>◆</span> Salesperson leaderboard", unsafe_allow_html=True,
                     help="Revenue, DSO, and on-time rate by salesperson. "
                          "Some sellers systematically sell to slow payers — "
                          "worth a conversation with the sales lead.")
@@ -469,7 +524,7 @@ def render_tab1() -> None:
     )
     from ai.ml_intelligence import render_intelligence_section
 
-    st.markdown("#### ◆ 8-week cash flow forecast · action queue",
+    st.markdown("#### <span class='sec-dia'>◆</span> 8-week cash flow forecast · action queue", unsafe_allow_html=True,
                 help="Weekly bar chart of expected AR inflow (invoices due "
                      "by week over the next 8 weeks) alongside the action "
                      "queue — top invoices to chase first, ranked by "
@@ -520,7 +575,7 @@ def render_tab1() -> None:
     ce = collection_effectiveness()
     ce_fig, ce_latest = fig_collection_effectiveness(ce)
     with ce1:
-        st.markdown("#### ◆ Collection effectiveness",
+        st.markdown("#### <span class='sec-dia'>◆</span> Collection effectiveness", unsafe_allow_html=True,
                     help="Fraction of invoices paid on or before due date, "
                          "on a rolling 90-day window. The single most "
                          "honest measure of collections quality.")
@@ -550,7 +605,7 @@ def render_tab1() -> None:
     # ══════════════════════════════════════════════════════════════════
     #  NEW · 90-day probabilistic cash projection (empirical bootstrap)
     # ══════════════════════════════════════════════════════════════════
-    st.markdown("#### ◆ 90-day cash projection · probability-weighted",
+    st.markdown("#### <span class='sec-dia'>◆</span> 90-day cash projection · probability-weighted", unsafe_allow_html=True,
                 help="Non-parametric bootstrap: for each open invoice we "
                      "sample plausible payment dates from that client's own "
                      "historical days-to-pay distribution — no Normal "
@@ -582,7 +637,7 @@ def render_tab1() -> None:
     # ══════════════════════════════════════════════════════════════════
     dk = derived_kpis()
     if dk:
-        st.markdown("#### ◆ Derived KPIs",
+        st.markdown("#### <span class='sec-dia'>◆</span> Derived KPIs", unsafe_allow_html=True,
                     help="Second-order metrics computed from the primary "
                          "KPIs. Portfolio velocity tells you how many "
                          "times AR turns over per year; AR turnover ratio "
@@ -612,7 +667,7 @@ def render_tab1() -> None:
     # ══════════════════════════════════════════════════════════════════
     #  NEW · 3D risk cube of counterparties
     # ══════════════════════════════════════════════════════════════════
-    st.markdown("#### ◆ 3D risk cube · counterparties",
+    st.markdown("#### <span class='sec-dia'>◆</span> 3D risk cube · counterparties", unsafe_allow_html=True,
                 help="One sphere per client with open invoices. "
                      "**X** = open exposure (₹) · **Y** = P(late) from the "
                      "ML model · **Z** = average historical days past due. "

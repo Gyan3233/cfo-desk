@@ -81,6 +81,17 @@ def build_view(path: str = XLSX_PATH) -> dict:
 
     inv = sheets["Invoices"].copy()
 
+    # Collapse line-item rows to one row per invoice. This workbook is a
+    # line-item export: multi-line invoices repeat their invoice-level fields
+    # (Balance, Total, dates, status) identically on every line row. Summing
+    # Balance across all rows double-counts — e.g. a 15-line invoice was
+    # counted 15×. Verified: repeats carry an identical Balance and customer,
+    # so keeping the first row per Invoice Number is exact, and no code uses
+    # line-level columns.
+    if "Invoice Number" in inv.columns:
+        inv = inv.drop_duplicates(subset=["Invoice Number"], keep="first") \
+                 .reset_index(drop=True)
+
     # Normalise dates
     for col in ("Invoice Date", "Due Date", "Expected Payment Date"):
         if col in inv.columns:
@@ -119,22 +130,34 @@ def compute_kpis(path: str = XLSX_PATH) -> dict:
     open_inv = inv[inv["Balance"].fillna(0) > 0]
     overdue  = open_inv[open_inv["Due Date"] < pd.Timestamp(anchor)]
 
-    # DSO: mean(paid_date - issue_date) on Closed invoices in scope
-    closed = inv[inv["Invoice Status"] == "Closed"]
+    # DSO / On-time from the settlement date of each Closed invoice.
+    # Prefer the REAL last payment date from the Payments sheet; fall back to
+    # the last_modified_time proxy only where an invoice has no payment record.
+    # Measure over ALL closed invoices, not the working set's recent-closed
+    # subset: a recent invoice only appears here once it's Closed, but recent
+    # *slow* payers are still Open — so the recent subset is skewed toward fast
+    # payers and inflates On-time. The full settled population is unbiased.
+    allinv = v.get("all_invoices", inv)
+    closed = allinv[allinv["Invoice Status"] == "Closed"].copy()
     dso = None
+    on_time = None
     if not closed.empty:
-        # last_modified_time is the closest thing to "paid date" in this workbook
-        closed_dates = pd.to_datetime(closed["last_modified_time"], errors="coerce", dayfirst=True)
-        deltas = (closed_dates - closed["Invoice Date"]).dt.days
+        proxy = pd.to_datetime(closed["last_modified_time"], errors="coerce", dayfirst=True)
+        pay = v.get("payments", pd.DataFrame())
+        if (not pay.empty and "Invoice Number" in pay.columns
+                and "Date" in pay.columns):
+            pdates = pd.to_datetime(pay["Date"], errors="coerce")
+            settle_by_num = pdates.groupby(pay["Invoice Number"]).max()   # last payment
+            settle = closed["Invoice Number"].map(settle_by_num)
+            settle = settle.fillna(proxy)                                  # fallback
+        else:
+            settle = proxy
+
+        deltas = (settle - closed["Invoice Date"]).dt.days
         deltas = deltas[deltas.between(0, 365)]   # sanity filter
         if len(deltas):
             dso = float(deltas.mean())
-
-    on_time = None
-    if not closed.empty:
-        closed_dates = pd.to_datetime(closed["last_modified_time"], errors="coerce", dayfirst=True)
-        on_time_paid = (closed_dates <= closed["Due Date"]).sum()
-        on_time = 100.0 * on_time_paid / len(closed)
+        on_time = 100.0 * (settle <= closed["Due Date"]).sum() / len(closed)
 
     total_out    = float(open_inv["Balance"].fillna(0).sum())
     total_over   = float(overdue["Balance"].fillna(0).sum())

@@ -234,11 +234,12 @@ def generate_upcoming_drafts(today: date | None = None) -> int:
 
 
 def autosend_due_drafts(send_fn, today: date | None = None,
-                         stop_event=None, progress_cb=None) -> dict:
-    """Dispatch every draft whose send date has arrived and is still active.
-    send_fn(to, subject, body, cc) → bool.  In production wire it to
-    gmail_client.send_email; in the UI dry-run you can pass a lambda that
-    just returns True.
+                         stop_event=None, progress_cb=None,
+                         ignore_schedule: bool = False) -> dict:
+    """Dispatch active drafts. Normally only those whose send date has arrived;
+    with ignore_schedule=True, dispatch ALL pending/reviewed drafts immediately
+    regardless of their scheduled date ("Send all now").
+    send_fn(to, subject, body, cc) → bool.
 
     stop_event : a threading.Event.  Checked before EVERY send.  If set,
                  loop exits immediately without dispatching more emails.
@@ -248,13 +249,20 @@ def autosend_due_drafts(send_fn, today: date | None = None,
     today = today or date.today()
     sent, failed, stopped_early = [], [], False
     with get_db(DB_PATH) as conn:
-        rows = conn.execute(
-            "SELECT * FROM email_drafts "
-            f"WHERE status IN ({','.join('?' * len(ACTIVE_STATUSES))}) "
-            "  AND scheduled_send_date IS NOT NULL "
-            "  AND scheduled_send_date <= ?",
-            (*ACTIVE_STATUSES, today.isoformat()),
-        ).fetchall()
+        if ignore_schedule:
+            rows = conn.execute(
+                "SELECT * FROM email_drafts "
+                f"WHERE status IN ({','.join('?' * len(ACTIVE_STATUSES))})",
+                (*ACTIVE_STATUSES,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM email_drafts "
+                f"WHERE status IN ({','.join('?' * len(ACTIVE_STATUSES))}) "
+                "  AND scheduled_send_date IS NOT NULL "
+                "  AND scheduled_send_date <= ?",
+                (*ACTIVE_STATUSES, today.isoformat()),
+            ).fetchall()
         total = len(rows)
         for i, d in enumerate(rows):
             # ── cooperative stop check ──────────────────────────────────
@@ -356,13 +364,14 @@ NC_CSS = """
       color:#0b1f35; font-weight:700; border-radius: 999px;
       padding: 3px 12px; font-size: 13px;
   }
-  .chip { padding: 3px 10px; border-radius: 999px; font-size: 12px;
-          font-weight: 600; display: inline-block; }
-  .chip-today  { background:#fde2e2; color:#c0392b; }
-  .chip-soon   { background:#fff3cd; color:#8a6d3b; }
-  .chip-later  { background:#d1ecf1; color:#0c5460; }
-  .chip-await  { background:#fff3cd; color:#8a6d3b; }
-  .chip-review { background:#d4edda; color:#155724; }
+  .chip { padding: 3px 11px; border-radius: 999px; font-size: 11.5px;
+          font-weight: 600; letter-spacing:.3px; display: inline-block;
+          border: 1px solid transparent; }
+  .chip-today  { background:rgba(196,97,74,.16);  color:#e39a83; border-color:rgba(196,97,74,.32); }
+  .chip-soon   { background:rgba(201,169,97,.15); color:#d9bd7e; border-color:rgba(201,169,97,.30); }
+  .chip-later  { background:rgba(255,255,255,.05); color:#b8b6ad; border-color:rgba(255,255,255,.10); }
+  .chip-await  { background:rgba(201,169,97,.15); color:#d9bd7e; border-color:rgba(201,169,97,.30); }
+  .chip-review { background:rgba(140,176,74,.15); color:#a8c46e; border-color:rgba(140,176,74,.30); }
 </style>
 """
 
@@ -442,6 +451,7 @@ def _run_send_worker(send_fn):
         send_fn,
         stop_event=_send_state["stop_event"],
         progress_cb=progress,
+        ignore_schedule=_send_state.get("ignore_schedule", False),
     )
     with _send_lock:
         _send_state["sent"]          = len(result["sent"])
@@ -482,12 +492,38 @@ def _render_send_all_controls(send_fn):
                 with _send_lock:
                     _send_state["stop_event"] = stop_ev
                     _send_state["started_at"] = datetime.now()
+                    _send_state["ignore_schedule"] = False
                 t = threading.Thread(
                     target=_run_send_worker, args=(send_fn,), daemon=True)
                 with _send_lock:
                     _send_state["thread"] = t
                 t.start()
                 st.rerun()
+
+        # Send everything now, regardless of scheduled date (testing / urgent run)
+        with st.expander("⚡ Send ALL pending now (ignore schedule)"):
+            st.caption("Sends every pending / reviewed draft immediately, even "
+                       "if its scheduled date hasn't arrived. These go to real "
+                       "recipients — use for a test or an intentional full run.")
+            confirm = st.checkbox("I understand — send all pending drafts now",
+                                  key="confirm_send_all_now")
+            if st.button("⚡ Send all now", use_container_width=True,
+                         type="secondary", disabled=not confirm):
+                if send_fn is None:
+                    st.error("No sender configured.")
+                else:
+                    _reset_send_state()
+                    stop_ev = threading.Event()
+                    with _send_lock:
+                        _send_state["stop_event"] = stop_ev
+                        _send_state["started_at"] = datetime.now()
+                        _send_state["ignore_schedule"] = True
+                    t = threading.Thread(
+                        target=_run_send_worker, args=(send_fn,), daemon=True)
+                    with _send_lock:
+                        _send_state["thread"] = t
+                    t.start()
+                    st.rerun()
     else:
         # RUNNING — show Stop button + live counter, and auto-refresh
         done = snap["sent"] + snap["failed"]

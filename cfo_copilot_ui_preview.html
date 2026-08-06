@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CFO Copilot · UI preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#f0eee5; --ink-dim:#c9c4b6; --muted:#8a8880; --faint:#6b6a63;
+    --bg:#0a0a0d; --surface:#111114; --surface-2:#16161b;
+    --border:#23232a; --border-2:#2f2f38;
+    --gold:#c9a961; --gold-hi:#d4af37; --good:#8cb04a; --bad:#c4614a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:'Inter','Segoe UI',sans-serif; color:var(--ink);
+    background: radial-gradient(1100px 520px at 50% -12%, #16161d 0%, transparent 62%), var(--bg);
+    min-height:100vh; padding:26px clamp(16px,4vw,54px) 60px;
+  }
+  .note{max-width:1180px;margin:0 auto 20px;color:var(--faint);font-size:12px;
+        letter-spacing:.3px;border:1px dashed var(--border);border-radius:10px;
+        padding:10px 14px;background:rgba(255,255,255,.015)}
+  .note b{color:var(--gold);font-weight:600}
+  .wrap{max-width:1180px;margin:0 auto}
+
+  /* topbar */
+  .app-topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;
+    padding:4px 2px 16px;border-bottom:1px solid var(--border);margin-bottom:22px}
+  .app-brand{display:flex;align-items:center;gap:16px}
+  .app-brand-mark{font-size:22px;font-weight:700;letter-spacing:.5px;line-height:1}
+  .app-brand-mark span{font-weight:300;letter-spacing:3px;color:var(--gold);margin-left:7px}
+  .app-brand-rule{width:1px;height:26px;background:var(--border-2)}
+  .app-brand-tag{color:var(--muted);font-size:11px;letter-spacing:2.4px;text-transform:uppercase}
+  .app-live{display:inline-flex;align-items:center;gap:8px;color:var(--ink-dim);
+    font-size:11px;letter-spacing:1.6px;text-transform:uppercase;font-weight:500;
+    background:var(--surface);border:1px solid var(--border);padding:6px 13px;border-radius:999px}
+  .app-live-dot{width:7px;height:7px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 8px rgba(140,176,74,.7);animation:pulse 2.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* tabs */
+  .tabs{display:flex;gap:30px;border-bottom:1px solid var(--border);margin-bottom:24px}
+  .tab{padding:10px 0;font-size:13.5px;font-weight:500;color:var(--muted);
+    letter-spacing:.4px;cursor:default;position:relative}
+  .tab.active{color:var(--ink);font-weight:600}
+  .tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--gold)}
+
+  /* kpi strip */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:26px}
+  @media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+    padding:15px 17px 13px;position:relative;overflow:hidden;transition:.18s}
+  .kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,var(--gold),transparent 72%);opacity:.45;transition:.18s}
+  .kpi:hover{border-color:var(--border-2);transform:translateY(-1px)}
+  .kpi:hover::before{opacity:.95}
+  .kpi .lbl{color:var(--muted);font-size:10.5px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase}
+  .kpi .val{color:var(--ink);font-family:'JetBrains Mono',monospace;font-size:1.62rem;
+    font-weight:600;letter-spacing:-.5px;margin:7px 0 3px}
+  .kpi .sub{font-size:.78rem;font-weight:500}
+  .up{color:var(--good)} .down{color:var(--bad)} .neu{color:var(--gold)}
+
+  /* section grid */
+  .row{display:grid;gap:20px;margin-bottom:26px}
+  .row.a{grid-template-columns:1.6fr 1fr}
+  @media(max-width:900px){.row.a{grid-template-columns:1fr}}
+  h4{color:var(--ink);font-weight:600;font-size:1.02rem;letter-spacing:.3px;margin:0 0 12px}
+  h4 .d{color:var(--gold);margin-right:7px}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+
+  /* aging bar chart (pure CSS) */
+  .bars{display:flex;align-items:flex-end;gap:22px;height:190px;padding:6px 6px 0}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%}
+  .bar-track{flex:1;width:100%;display:flex;align-items:flex-end}
+  .bar{width:100%;border-radius:5px 5px 0 0}
+  .bar-amt{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim)}
+  .bar-lbl{font-size:11px;color:var(--muted);letter-spacing:.4px}
+
+  /* action queue */
+  .aq{display:flex;flex-direction:column;gap:8px}
+  .aq-item{background:rgba(30,30,36,.5);border-left:3px solid var(--gold);
+    padding:8px 13px;border-radius:5px}
+  .aq-top{font-size:11px;color:var(--muted)}
+  .aq-bot{font-size:13px;color:var(--ink);font-family:'JetBrains Mono',monospace;display:flex;justify-content:space-between;margin-top:2px}
+  .aq-item.hi{border-left-color:var(--bad)} .aq-item.md{border-left-color:var(--gold)} .aq-item.lo{border-left-color:var(--good)}
+  .p.hi{color:var(--bad)} .p.md{color:var(--gold)} .p.lo{color:var(--good)}
+
+  /* dso line */
+  svg.line{width:100%;height:200px;display:block}
+
+  /* chips */
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .chip{padding:3px 11px;border-radius:999px;font-size:11.5px;font-weight:600;
+    letter-spacing:.3px;border:1px solid transparent}
+  .chip-today{background:rgba(196,97,74,.16);color:#e39a83;border-color:rgba(196,97,74,.32)}
+  .chip-soon{background:rgba(201,169,97,.15);color:#d9bd7e;border-color:rgba(201,169,97,.30)}
+  .chip-later{background:rgba(255,255,255,.05);color:#b8b6ad;border-color:rgba(255,255,255,.10)}
+  .chip-review{background:rgba(140,176,74,.15);color:#a8c46e;border-color:rgba(140,176,74,.30)}
+  .cap{color:var(--faint);font-size:12px;margin-top:14px}
+</style>
+</head>
+<body>
+  <div class="note">Static preview of the new theme — the real app renders these same tokens through Streamlit. <b>Hover the KPI cards</b> to see the gold edge light up. Numbers are illustrative.</div>
+  <div class="wrap">
+
+    <!-- TOPBAR -->
+    <div class="app-topbar">
+      <div class="app-brand">
+        <div class="app-brand-mark">CFO<span>COPILOT</span></div>
+        <div class="app-brand-rule"></div>
+        <div class="app-brand-tag">Accounts Receivable Intelligence</div>
+      </div>
+      <span class="app-live"><span class="app-live-dot"></span>SAP connected · live</span>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+      <div class="tab active">📊 Executive Overview</div>
+      <div class="tab">👤 Client Profiles</div>
+      <div class="tab">🔔 Notification Center</div>
+    </div>
+
+    <!-- KPI STRIP -->
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Total Outstanding</div><div class="val">₹4.82 Cr</div><div class="sub neu">312 open invoices</div></div>
+      <div class="kpi"><div class="lbl">Overdue</div><div class="val">₹1.36 Cr</div><div class="sub down">▲ 74 invoices</div></div>
+      <div class="kpi"><div class="lbl">Large Overdues</div><div class="val">18</div><div class="sub neu">&gt; ₹50K each</div></div>
+      <div class="kpi"><div class="lbl">DSO (90d)</div><div class="val">41.3d</div><div class="sub up">▼ 2.1 vs prior</div></div>
+      <div class="kpi"><div class="lbl">On-time %</div><div class="val">72.4%</div><div class="sub up">▲ Healthy</div></div>
+      <div class="kpi"><div class="lbl">Effective Clients</div><div class="val">11.2</div><div class="sub neu">HHI 892</div></div>
+    </div>
+
+    <!-- AGING + ACTION QUEUE -->
+    <div class="row a">
+      <div class="panel">
+        <h4><span class="d">◆</span>AR Aging</h4>
+        <div class="bars">
+          <div class="bar-col"><span class="bar-amt">₹2.9 Cr</span><div class="bar-track"><div class="bar" style="height:100%;background:#146c43"></div></div><span class="bar-lbl">Current</span></div>
+          <div class="bar-col"><span class="bar-amt">₹78 L</span><div class="bar-track"><div class="bar" style="height:47%;background:#b8860b"></div></div><span class="bar-lbl">1–30</span></div>
+          <div class="bar-col"><span class="bar-amt">₹41 L</span><div class="bar-track"><div class="bar" style="height:30%;background:#d97706"></div></div><span class="bar-lbl">31–60</span></div>
+          <div class="bar-col"><span class="bar-amt">₹22 L</span><div class="bar-track"><div class="bar" style="height:19%;background:#dc6b2f"></div></div><span class="bar-lbl">61–90</span></div>
+          <div class="bar-col"><span class="bar-amt">₹15 L</span><div class="bar-track"><div class="bar" style="height:13%;background:#c0392b"></div></div><span class="bar-lbl">90+</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h4><span class="d">◆</span>Action queue</h4>
+        <div class="aq">
+          <div class="aq-item hi"><div class="aq-top">ITPL/24-25/0412 · <b>Beacon Retail</b></div><div class="aq-bot"><span>₹18.40 L</span><span class="p hi">P(late) 81%</span></div></div>
+          <div class="aq-item hi"><div class="aq-top">ITPL/24-25/0389 · <b>Delta Foods</b></div><div class="aq-bot"><span>₹12.05 L</span><span class="p hi">P(late) 74%</span></div></div>
+          <div class="aq-item md"><div class="aq-top">ITPL/24-25/0401 · <b>Acme Industrial</b></div><div class="aq-bot"><span>₹9.60 L</span><span class="p md">P(late) 52%</span></div></div>
+          <div class="aq-item lo"><div class="aq-top">ITPL/24-25/0377 · <b>Northwind Ltd</b></div><div class="aq-bot"><span>₹6.20 L</span><span class="p lo">P(late) 28%</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DSO TREND + CHIPS -->
+    <div class="row a">
+      <div class="panel">
+        <h4><span class="d">◆</span>DSO trend · 30-day rolling</h4>
+        <svg class="line" viewBox="0 0 640 200" preserveAspectRatio="none">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#c9a961" stop-opacity=".22"/>
+            <stop offset="1" stop-color="#c9a961" stop-opacity="0"/></linearGradient></defs>
+          <line x1="0" y1="50" x2="640" y2="50" stroke="rgba(255,255,255,.05)"/>
+          <line x1="0" y1="100" x2="640" y2="100" stroke="rgba(255,255,255,.05)"/>
+          <line x1="0" y1="150" x2="640" y2="150" stroke="rgba(255,255,255,.05)"/>
+          <path d="M0,120 L90,110 L180,128 L270,92 L360,104 L450,70 L540,86 L640,60 L640,200 L0,200 Z" fill="url(#g)"/>
+          <path d="M0,120 L90,110 L180,128 L270,92 L360,104 L450,70 L540,86 L640,60" fill="none" stroke="#c9a961" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div class="panel">
+        <h4><span class="d">◆</span>Upcoming reminders</h4>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div><div style="color:var(--ink-dim);font-size:13px;margin-bottom:5px">Beacon Retail · ITPL/0412</div><div class="chips"><span class="chip chip-today">today</span><span class="chip chip-review">reviewed · will auto-send</span></div></div>
+          <div><div style="color:var(--ink-dim);font-size:13px;margin-bottom:5px">Delta Foods · ITPL/0389</div><div class="chips"><span class="chip chip-soon">2 days</span><span class="chip chip-soon">awaiting review</span></div></div>
+          <div><div style="color:var(--ink-dim);font-size:13px;margin-bottom:5px">Acme Industrial · ITPL/0401</div><div class="chips"><span class="chip chip-later">6 days</span></div></div>
+        </div>
+        <div class="cap">Status chips now sit on the dark palette instead of the old light pastels.</div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

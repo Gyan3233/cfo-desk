@@ -62,12 +62,13 @@ from core.kpi_catalog import kpi_metric as kpi_show
 from app.tabs.notification_center import render_notification_center, run_lifecycle as reminder_lifecycle
 from app.tabs.executive_overview import render_tab1
 from app.tabs.client_profiles import render_tab2
+from app.theme import inject_theme, render_topbar, apply_plotly_theme
 
 
 # ============================================================
 # Page config + styles
 # ============================================================
-st.set_page_config(page_title="CFO Copilot | Finance & Collections", layout="wide")
+st.set_page_config(page_title="CFO Desk | Finance Intelligence", layout="wide")
 
 # ============================================================
 # ACCESS CONTROL (v3) — allowlist-restricted signup/login.
@@ -94,59 +95,14 @@ except Exception as _e:
     st.session_state["_scheduler_error"] = traceback.format_exc()
     st.session_state["_scheduler_startup"] = None
 
-st.markdown("""
-    <style>
-    .kpi-dark {
-        background-color: #161618; border-top: 3px solid #d4af37;
-        padding: 14px 18px; border-radius: 6px; margin-bottom: 12px;
-        min-height: 108px;
-    }
-    .kpi-dark-label { color: #95a5a6; font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; }
-    .kpi-dark-value { color: #f4f4f5; font-size: 24px; font-weight: 700; margin: 6px 0; }
-    .kpi-dark-sub   { color: #d4af37; font-size: 12px; font-weight: 500; }
-    .kpi-dark-sub.warn { color: #ef4444; }
-    .kpi-dark-sub.good { color: #10b981; }
+# Appearance toggle (Dark default) + global design system + Plotly canvas
+st.sidebar.radio("Appearance", ["Dark", "Light"], key="ui_theme_choice",
+                 horizontal=True)
+_ui_mode = "light" if st.session_state.get("ui_theme_choice") == "Light" else "dark"
+inject_theme(_ui_mode)
+apply_plotly_theme(_ui_mode)
 
-    .age-card {
-        background-color: #1a1a1c; border-left: 3px solid #d4af37;
-        padding: 12px 16px; border-radius: 4px; margin-bottom: 8px;
-    }
-    .age-card-label { color: #95a5a6; font-size: 11px; text-transform: uppercase; }
-    .age-card-value { color: #f4f4f5; font-size: 20px; font-weight: 600; margin: 4px 0; }
-    .age-card-sub   { color: #64748b; font-size: 11px; }
-
-    .chip {
-        display: inline-block; padding: 4px 12px; border-radius: 12px;
-        background-color: #2a1a1a; color: #f4a4a4; font-size: 12px;
-        margin: 3px 4px 3px 0; border: 1px solid #4a2a2a;
-    }
-    .chip.warn { background-color: #2a2416; color: #d4af37; border-color: #4a4020; }
-    .chip.good { background-color: #16281c; color: #10b981; border-color: #205030; }
-
-    /* Chat-style comm bubbles for Tab 2 timeline */
-    .msg-row { display: flex; margin: 10px 0; }
-    .msg-row.out { justify-content: flex-end; }
-    .msg-row.in  { justify-content: flex-start; }
-    .msg-bubble {
-        max-width: 72%; padding: 10px 14px; border-radius: 10px;
-        font-size: 13px; line-height: 1.45;
-    }
-    .msg-bubble.out { background-color: #2a2416; color: #f4f4f5; border: 1px solid #4a4020; border-top-right-radius: 2px; }
-    .msg-bubble.in  { background-color: #1a1a1c; color: #f4f4f5; border: 1px solid #333; border-top-left-radius: 2px; }
-    .msg-meta   { font-size: 11px; color: #95a5a6; margin-bottom: 4px; }
-    .msg-body   { white-space: pre-wrap; }
-    .msg-sentiment { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; }
-
-    .metric-card { background-color: #ffffff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-top: 4px solid #005A8C; margin-bottom: 1rem; }
-    .metric-label { font-size: 0.85rem; color: #5a7398; text-transform: uppercase; font-weight: 600; margin-bottom: 5px; }
-    .metric-value { font-size: 2rem; color: #070d1a; font-weight: 700; }
-    .metric-sub   { font-size: 0.8rem; color: #10b981; font-weight: 500; }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("Finance & Collections Copilot")
-st.caption("SAP Connected • AI-Driven Receivables Agent")
-st.write("---")
+render_topbar(CURRENT_USER)
 
 
 # ============================================================
@@ -720,7 +676,22 @@ with tab2:
 with tab3:
     # v3.1 — Notification Center (Agent Pipeline Setup renamed & rewired)
     def _sender(to, subject, body, cc=None):
-        """Real Gmail send. Errors bubble up to the UI as st.error."""
+        """Send a reminder. Uses Gmail SMTP (App Password) when configured;
+        falls back to the Gmail API path otherwise."""
+        try:
+            from services.smtp_sender import smtp_is_configured, send_email_smtp
+            if smtp_is_configured():
+                try:
+                    ok = send_email_smtp(to=to, subject=subject, body=body, cc=cc)
+                    if not ok:
+                        st.session_state['_last_send_error'] = 'SMTP send returned False — no valid recipient.'
+                    return bool(ok)
+                except Exception as e:
+                    st.error(f'SMTP send failed: {e}. Check SMTP_USERNAME / SMTP_PASSWORD (App Password) in .env.')
+                    return False
+        except Exception:
+            pass  # fall through to Gmail API
+
         try:
             from services.gmail_client import get_gmail_service, send_email
             svc = get_gmail_service()
@@ -730,11 +701,12 @@ with tab3:
             return bool(ok)
         except FileNotFoundError as e:
             st.error(
-                f'Gmail credentials missing: {e}. Put credentials.json + token.json in the backend folder and restart.'
+                'No email transport configured. Set SMTP_USERNAME + SMTP_PASSWORD '
+                f'(Gmail App Password) in .env. (Gmail API also unavailable: {e})'
             )
             return False
         except Exception as e:
-            st.error(f'Gmail send failed: {e}')
+            st.error(f'Email send failed: {e}')
             return False
     render_notification_center(current_user_email=CURRENT_USER['email'], send_fn=_sender)
     if st.session_state.get('_last_send_error'):
@@ -750,6 +722,24 @@ with tab3:
 
     # v3.5 — visible scheduler status + last-runs table + diagnostics
     with st.expander("⚙ Gmail scan status & recent history", expanded=False):
+        # Compact the three status metrics inside THIS expander only.
+        # Without the div[data-testid="stExpander"] prefix, this would
+        # shrink every st.metric across every tab.
+        st.markdown("""
+        <style>
+          div[data-testid="stExpander"] div[data-testid="stMetric"] label {
+              font-size: 10px !important;
+              color: #8a8880 !important;
+          }
+          div[data-testid="stExpander"] div[data-testid="stMetricValue"] {
+              font-size: 15px !important;
+          }
+          div[data-testid="stExpander"] div[data-testid="stMetricValue"] > div {
+              font-size: 15px !important;
+          }
+        </style>
+        """, unsafe_allow_html=True)
+
         # Show startup error first, if any — this is what was silently
         # hidden before and led to "🔴 idle" with no explanation.
         if st.session_state.get("_scheduler_error"):

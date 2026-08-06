@@ -510,10 +510,10 @@ def require_login() -> dict:
     st.markdown(
         """
         <div class='login-hero'>
-            <p class='brand'>CFO <span class='mono'>COPILOT</span></p>
+            <p class='brand'>CFO <span class='mono'>DESK</span></p>
             <div class='divider'></div>
-            <p class='tag'>Your intelligent partner for cash, collections & clarity.</p>
-            <p class='sub'>Accounts Receivable · Intelligence</p>
+            <p class='tag'>AI-Powered Finance Intelligence Platform</p>
+            <p class='sub'>Cash · Collections · Clarity</p>
         </div>
         """,
         unsafe_allow_html=True,

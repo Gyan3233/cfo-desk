@@ -396,6 +396,17 @@ def apply_reply_to_invoice(conn, reply_id: int) -> dict:
     if not promised:
         return {"applied": False, "reason": "unparseable promised date"}
 
+    # A promise-to-pay must be a FUTURE date. A past date (an ISO date the
+    # client typed, an "I paid on <date>" line, or an LLM slip) is not a
+    # promise — guard here so it can't be logged as a PTP even if it happens
+    # to fall after an older due date.
+    if promised < date.today():
+        conn.execute("UPDATE client_replies SET is_ptp = 0 WHERE id = ?",
+                     (reply_id,))
+        conn.commit()
+        return {"applied": False,
+                "reason": f"promised date {promised} is in the past — not a PTP"}
+
     current_due = _to_date(inv["latest_due_date"]) or _to_date(inv["due_date"])
     if not current_due:
         return {"applied": False, "reason": "invoice has no due date"}
@@ -528,17 +539,16 @@ def ingest_reply(conn, email: dict, today: date | None = None) -> dict:
 
 
 def _get_known_client_emails(min_reminders_sent: int = 1) -> list[str]:
-    """Return the list of client email addresses to whom we have already
-    dispatched at least one reminder. Only these are worth scanning for
-    replies — cuts Gmail traffic drastically vs 'entire inbox'."""
+    """Return every client email address to scan for replies. At this scale we
+    scan all clients that have an address, so a reply is never missed because a
+    reminder wasn't recorded as 'sent' (reminders may have gone out in a prior
+    session or outside the app). Still far narrower than scanning the whole
+    inbox — it only searches messages FROM these known client addresses."""
     with get_db(DB_PATH) as conn:
         rows = conn.execute("""
             SELECT DISTINCT lower(c.email) AS email
               FROM clients c
-              JOIN email_drafts d ON d.client_id = c.id
-             WHERE d.status = 'sent'
-               AND c.email IS NOT NULL
-               AND c.email != ''
+             WHERE c.email IS NOT NULL AND c.email != ''
         """).fetchall()
     return [r["email"] for r in rows if r["email"]]
 
@@ -655,10 +665,15 @@ def poll_gmail_replies(max_results: int = 100, days_back: int = None) -> dict:
         return result
 
     try:
-        from services.gmail_client import get_gmail_service
-        svc = get_gmail_service()
-        emails = _fetch_targeted(svc, known, days_back=days_back,
-                                  max_results=max_results)
+        from services.imap_reader import imap_is_configured, fetch_replies_from
+        if imap_is_configured():
+            emails = fetch_replies_from(known, days_back=days_back,
+                                        max_results=max_results)
+        else:
+            from services.gmail_client import get_gmail_service
+            svc = get_gmail_service()
+            emails = _fetch_targeted(svc, known, days_back=days_back,
+                                      max_results=max_results)
     except Exception as e:
         result = {"fetched": 0, "processed": 0, "ptps": 0,
                   "targeted_clients": len(known), "days_back": days_back,

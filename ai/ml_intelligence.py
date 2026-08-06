@@ -287,6 +287,11 @@ def score_open_invoices() -> pd.DataFrame:
             if float(row.get("Balance", 0) or 0) <= 0:
                 continue
             prior = g[g["Invoice Date"] < row["Invoice Date"]]
+            # Match training exactly: features are built from SETTLED priors
+            # only. Counting unpaid priors as 'on-time' understated risk for
+            # ~75% of open invoices. Requiring MIN_HISTORY *settled* priors
+            # also means we don't score clients without comparable history.
+            prior = prior[prior["paid_date"].notna()]
             n = len(prior)
             if n < MIN_HISTORY:
                 continue

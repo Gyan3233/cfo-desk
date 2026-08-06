@@ -258,7 +258,7 @@ def render_tab2() -> None:
     # ── CHARTS ─────────────────────────────────────────────────────────
     cc1, cc2 = st.columns(2)
     with cc1:
-        st.markdown("**◆ Payment timing distribution**",
+        st.markdown("**<span class='sec-dia'>◆</span> Payment timing distribution**", unsafe_allow_html=True,
                     help="How many days after invoice date this client "
                          "typically pays. Read: '80% pay within X days'.")
         if hist["closed"].empty:
@@ -268,7 +268,7 @@ def render_tab2() -> None:
                              use_container_width=True)
 
     with cc2:
-        st.markdown("**◆ Days late over time**",
+        st.markdown("**<span class='sec-dia'>◆</span> Days late over time**", unsafe_allow_html=True,
                     help="Each dot is a paid invoice. Above the line = late; "
                          "below = paid early. Trend up-and-right means "
                          "collections are slipping for this client.")
@@ -301,14 +301,14 @@ def render_tab2() -> None:
     if db_client_id is None:
         st.caption("_This client has no reminder/reply history in the database yet._")
     else:
-        st.markdown("#### ◆ Promise-to-Pay status per invoice",
+        st.markdown("#### <span class='sec-dia'>◆</span> Promise-to-Pay status per invoice", unsafe_allow_html=True,
                     help="Every invoice for this client that has a PTP "
                          "promised date or one or more extension requests.")
         render_tab2_ptp_block(db_client_id)
 
         st.divider()
 
-        st.markdown("#### ◆ AI communication timeline",
+        st.markdown("#### <span class='sec-dia'>◆</span> AI communication timeline", unsafe_allow_html=True,
                     help="Full history of reminder emails sent and client "
                          "replies received, with AI classification of "
                          "each reply and payment commitments extracted.")
