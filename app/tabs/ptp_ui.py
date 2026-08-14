@@ -148,10 +148,10 @@ def render_tab2_ptp_block(client_id: int) -> None:
                    EXISTS (SELECT 1 FROM ptp_events p WHERE p.invoice_id = i.id)
                    OR (i.latest_due_date IS NOT NULL
                        AND i.original_due_date IS NOT NULL
-                       AND date(i.latest_due_date) != date(i.original_due_date))
+                       AND substr(i.latest_due_date,1,10) != substr(i.original_due_date,1,10))
                    OR (i.expected_payment_date IS NOT NULL
                        AND i.original_due_date IS NOT NULL
-                       AND date(i.expected_payment_date) != date(i.original_due_date))
+                       AND substr(i.expected_payment_date,1,10) != substr(i.original_due_date,1,10))
                )
              ORDER BY i.due_date DESC
         """, (client_id,)).fetchall()

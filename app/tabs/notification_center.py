@@ -199,12 +199,13 @@ def generate_upcoming_drafts(today: date | None = None) -> int:
             # re-create drafts for invoices that had been reminded 2 hours
             # ago.  Cooldown default = 5 days; env override REMINDER_COOLDOWN_DAYS.
             cooldown = int(os.getenv("REMINDER_COOLDOWN_DAYS", "5"))
+            cutoff = (datetime.now() - timedelta(days=cooldown)).strftime("%Y-%m-%d %H:%M:%S")
             recently_sent = conn.execute(
                 "SELECT id FROM email_drafts "
                 "WHERE invoice_id = ? AND status = 'sent' "
                 "  AND sent_at IS NOT NULL "
-                "  AND datetime(sent_at) > datetime('now', ?)",
-                (r["invoice_id"], f"-{cooldown} days"),
+                "  AND sent_at > ?",
+                (r["invoice_id"], cutoff),
             ).fetchone()
             if recently_sent: continue
 
@@ -315,6 +316,7 @@ def sync_center_with_sent_state(cooldown_days: int | None = None) -> dict:
     """
     ensure_schema()
     cooldown = cooldown_days or int(os.getenv("REMINDER_COOLDOWN_DAYS", "5"))
+    cutoff = (datetime.now() - timedelta(days=cooldown)).strftime("%Y-%m-%d %H:%M:%S")
     with get_db(DB_PATH) as conn:
         # Find invoice_ids where we have BOTH a sent draft (recent) and
         # a pending/approved draft — those pending ones are the ghosts.
@@ -327,10 +329,10 @@ def sync_center_with_sent_state(cooldown_days: int | None = None) -> dict:
                     WHERE s.invoice_id = p.invoice_id
                       AND s.status = 'sent'
                       AND s.sent_at IS NOT NULL
-                      AND datetime(s.sent_at) > datetime('now', ?)
+                      AND s.sent_at > ?
                       AND s.id != p.id
                )
-        """, (*ACTIVE_STATUSES, f"-{cooldown} days"))
+        """, (*ACTIVE_STATUSES, cutoff))
         ghost_ids = [row["pending_id"] for row in cur.fetchall()]
 
         if ghost_ids:
