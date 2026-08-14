@@ -122,6 +122,8 @@ header[data-testid="stHeader"] { background: transparent !important; }
 .app-brand { display:flex; align-items:center; gap:16px; min-width:0; }
 .app-brand-mark { font-size:22px; font-weight:700; letter-spacing:.5px; color:var(--ink); white-space:nowrap; line-height:1; }
 .app-brand-mark span { font-weight:400; letter-spacing:.5px; color:var(--gold); margin-left:8px; }
+.app-brand-by { font-size:11px; font-weight:600; letter-spacing:.5px; color:var(--muted); margin-top:3px; line-height:1; }
+.app-brand-by .ib { color:#4b93ff; } .app-brand-by .ir { color:#ef4d4d; }
 .app-brand-rule { width:1px; height:26px; background:var(--border-2); }
 .app-brand-tag { color:var(--muted); font-size:11px; letter-spacing:2.4px; text-transform:uppercase; white-space:nowrap; }
 @media (max-width:640px){ .app-brand-tag, .app-brand-rule { display:none; } }
@@ -260,7 +262,10 @@ def render_topbar(user: dict | None = None, status_text: str = "") -> None:
         """
         <div class="app-topbar">
           <div class="app-brand">
-            <div class="app-brand-mark">CFO<span>Desk</span></div>
+            <div class="app-brand-name">
+              <div class="app-brand-mark">CFO<span>Desk</span></div>
+              <div class="app-brand-by">by <span class="ib">Infra</span><span class="ir">Beat</span></div>
+            </div>
             <div class="app-brand-rule"></div>
             <div class="app-brand-tag">AI-Powered Finance Intelligence Platform</div>
           </div>
