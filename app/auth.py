@@ -350,12 +350,26 @@ LOGIN_CSS = """
   /* Deep obsidian background with a subtle radial highlight — the CRED
      'glossy black' feel without going full noir. Works in both themes. */
   .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-      background:
-          radial-gradient(1200px 600px at 50% -10%, #1a1a1f 0%, transparent 60%),
-          radial-gradient(900px 500px at 50% 110%, #16161b 0%, transparent 55%),
-          #0a0a0d !important;
+      background: #0a0a0d !important;
       color: #e8e6df !important;
   }
+  /* dynamic golden touch — a breathing gold glow top + soft gold wash below */
+  [data-testid="stAppViewContainer"]::before {
+      content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background: radial-gradient(ellipse 60% 44% at 50% 2%, rgba(212,175,55,.17), transparent 60%);
+      animation: cfoGlow 7s ease-in-out infinite;
+  }
+  [data-testid="stAppViewContainer"]::after {
+      content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+      background: radial-gradient(ellipse 55% 40% at 50% 110%, rgba(212,175,55,.07), transparent 58%);
+      animation: cfoGlow2 9s ease-in-out infinite;
+  }
+  @keyframes cfoGlow  { 0%,100%{opacity:.5; transform:scale(1)} 50%{opacity:1; transform:scale(1.10)} }
+  @keyframes cfoGlow2 { 0%,100%{opacity:.4} 50%{opacity:.75} }
+  @media (prefers-reduced-motion: reduce) {
+    [data-testid="stAppViewContainer"]::before,[data-testid="stAppViewContainer"]::after{animation:none!important}
+  }
+  .block-container { position:relative; z-index:1; }
 
   /* ── HERO ─────────────────────────────────────────────────────────── */
   .login-hero { text-align:center; padding: 56px 12px 12px 12px; }
@@ -369,6 +383,12 @@ LOGIN_CSS = """
       font-weight: 300;
       letter-spacing: 2px;
   }
+  .login-hero .by {
+      color: #8a8f9a; font-size: 15px; font-weight: 600; letter-spacing: 1px;
+      margin: 5px 0 0; font-family: 'Segoe UI','Inter',sans-serif;
+  }
+  .login-hero .by .ib { color: #4b93ff; }
+  .login-hero .by .ir { color: #ef4d4d; }
   .login-hero .divider {
       width: 32px; height: 1px; background: #3a3a42;
       margin: 22px auto 18px auto;
@@ -487,28 +507,32 @@ LOGIN_CSS = """
   .login-card .stButton>button,
   .login-card .stButton>button:focus,
   .login-card [data-testid="stForm"] .stButton>button {
-      background: #f0eee5 !important;      /* soft cream */
-      background-color: #f0eee5 !important;
-      color: #0a0a0d !important;
+      background: linear-gradient(180deg,#e6c964,#c79a2b) !important;
+      background-color: #d4af37 !important;
+      color: #14110a !important;
       border: 0 !important;
       border-radius: 10px !important;
       height: 46px !important;
-      font-weight: 600 !important;
+      font-weight: 700 !important;
       font-size: 13px !important;
       letter-spacing: 2px !important;
       text-transform: uppercase !important;
-      box-shadow: 0 2px 12px rgba(0,0,0,.4) !important;
-      transition: all .2s ease !important;
+      box-shadow: 0 8px 22px rgba(212,175,55,.30) !important;
+      transition: transform .16s ease, box-shadow .3s ease !important;
       margin-top: 8px !important;
+      animation: cfoBtnPulse 3.5s ease-in-out infinite;
   }
   .login-card .stButton>button:hover {
-      background: #ffffff !important;
-      background-color: #ffffff !important;
-      color: #0a0a0d !important;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 18px rgba(240, 238, 229, 0.15) !important;
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 10px 34px rgba(212,175,55,.55) !important;
+      animation: none !important;
   }
-  .login-card .stButton>button:active { transform: translateY(0); }
+  .login-card .stButton>button:active { transform: translateY(0) scale(.99); }
+  @keyframes cfoBtnPulse { 0%,100%{box-shadow:0 8px 22px rgba(212,175,55,.30)}
+                           50%{box-shadow:0 8px 34px rgba(212,175,55,.50)} }
+  @media (prefers-reduced-motion: reduce) {
+    .login-card .stButton>button { animation:none !important; }
+  }
 
   /* Error / alert boxes inside the card — red stays reserved for these */
   .login-card [data-testid="stAlert"] {
@@ -561,6 +585,7 @@ def require_login() -> dict:
         """
         <div class='login-hero'>
             <p class='brand'>CFO <span class='mono'>DESK</span></p>
+            <p class='by'>by <span class='ib'>Infra</span><span class='ir'>Beat</span></p>
             <div class='divider'></div>
             <p class='tag'>AI-Powered Finance Intelligence Platform</p>
             <p class='sub'>Cash · Collections · Clarity</p>
