@@ -349,25 +349,27 @@ LOGIN_CSS = """
 
   /* Deep obsidian background with a subtle radial highlight — the CRED
      'glossy black' feel without going full noir. Works in both themes. */
-  .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"] {
-      background: #0a0a0d !important;
-      color: #e8e6df !important;
+  .stApp { background: #0a0a0d !important; color: #e8e6df !important; }
+  /* inner containers transparent so the glow shows through */
+  [data-testid="stAppViewContainer"], [data-testid="stMain"],
+  section.main, [data-testid="stMain"] > div, .block-container {
+      background: transparent !important;
   }
-  /* dynamic golden touch — a breathing gold glow top + soft gold wash below */
-  [data-testid="stAppViewContainer"]::before {
+  /* dynamic golden touch — glow sits above the base, below the content */
+  .stApp::before {
       content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-      background: radial-gradient(ellipse 60% 44% at 50% 2%, rgba(212,175,55,.17), transparent 60%);
+      background: radial-gradient(ellipse 60% 44% at 50% 2%, rgba(212,175,55,.18), transparent 60%);
       animation: cfoGlow 7s ease-in-out infinite;
   }
-  [data-testid="stAppViewContainer"]::after {
+  .stApp::after {
       content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
-      background: radial-gradient(ellipse 55% 40% at 50% 110%, rgba(212,175,55,.07), transparent 58%);
+      background: radial-gradient(ellipse 55% 40% at 50% 110%, rgba(212,175,55,.08), transparent 58%);
       animation: cfoGlow2 9s ease-in-out infinite;
   }
   @keyframes cfoGlow  { 0%,100%{opacity:.5; transform:scale(1)} 50%{opacity:1; transform:scale(1.10)} }
   @keyframes cfoGlow2 { 0%,100%{opacity:.4} 50%{opacity:.75} }
   @media (prefers-reduced-motion: reduce) {
-    [data-testid="stAppViewContainer"]::before,[data-testid="stAppViewContainer"]::after{animation:none!important}
+    .stApp::before, .stApp::after { animation:none !important; }
   }
   .block-container { position:relative; z-index:1; }
 
