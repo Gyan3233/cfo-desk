@@ -700,7 +700,8 @@ def poll_gmail_replies(max_results: int = 100, days_back: int = None) -> dict:
 def recent_scan_history(n: int = 10) -> list[dict]:
     """For Tab 3's job-history panel."""
     with get_db(DB_PATH) as conn:
-        conn.execute("""
+        if not IS_PG:
+            conn.execute("""
             CREATE TABLE IF NOT EXISTS scan_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ran_at TEXT DEFAULT (datetime('now','localtime')),
