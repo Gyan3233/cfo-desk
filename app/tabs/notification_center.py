@@ -28,7 +28,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import streamlit as st
 
-from core.database import DB_PATH, get_db
+from core.database import DB_PATH, get_db, IS_PG
 from core.template_manager import render_for_client
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -84,13 +84,13 @@ def ensure_schema():
     SQLite allows ADD COLUMN cheaply; wrap in try/except so re-runs are safe.
     Also self-heals any bad date strings left over from earlier crashes."""
     with get_db(DB_PATH) as conn:
-        for stmt in [
+        for stmt in ([] if IS_PG else [
             "ALTER TABLE invoices ADD COLUMN reminder_date TEXT",
             "ALTER TABLE email_drafts ADD COLUMN scheduled_send_date TEXT",
             "ALTER TABLE email_drafts ADD COLUMN template_used TEXT",
             "ALTER TABLE email_drafts ADD COLUMN reviewed_by TEXT",
             "ALTER TABLE email_drafts ADD COLUMN reviewed_at TEXT",
-        ]:
+        ]):
             try:
                 conn.execute(stmt); conn.commit()
             except Exception:

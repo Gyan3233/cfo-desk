@@ -119,29 +119,23 @@ CREATE INDEX IF NOT EXISTS idx_drafts_invoice     ON email_drafts(invoice_id);
 # CONNECTION HELPER
 # ─────────────────────────────────────────────────────────────
 
-@contextmanager
-def get_db(path: str = None):
-    """
-    Opens a database connection.
-    Using 'with get_db() as conn:' ensures it always closes properly.
-    """
-    db_path = path or DB_PATH
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row        # lets us use dict-like access: row["name"]
-    conn.execute("PRAGMA foreign_keys=ON") # enforce table relationships
-    conn.execute("PRAGMA journal_mode=WAL") # better performance for concurrent access
-    try:
-        yield conn
-    finally:
-        conn.close()
+# ─────────────────────────────────────────────────────────────
+# CONNECTION HELPER  (delegates to the unified SQLite/Postgres layer)
+# ─────────────────────────────────────────────────────────────
+
+from core.db import get_db, IS_PG   # noqa: E402  (unified backend)
 
 
 def init_db(path: str = None):
-    """Creates all tables if they don't already exist."""
+    """Create all tables. On Postgres/Supabase the schema is created once via
+    schema_supabase.sql, so here we only run the SQLite DDL for local dev."""
+    if IS_PG:
+        return
     with get_db(path) as conn:
         conn.executescript(SCHEMA)
         conn.commit()
     print(f"✅ Database ready at: {path or DB_PATH}")
+
 
 
 # ─────────────────────────────────────────────────────────────

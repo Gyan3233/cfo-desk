@@ -47,7 +47,8 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from core.database import DB_PATH, get_db
+from core.database import DB_PATH, get_db, IS_PG
+from core.db import insert_returning_id
 
 logger = logging.getLogger("cfo.ptp")
 
@@ -62,7 +63,7 @@ def ensure_schema() -> None:
     without touching v3.2 data.  Each ALTER is wrapped so a repeat run just
     swallows the 'duplicate column' error."""
     with get_db(DB_PATH) as conn:
-        for stmt in [
+        for stmt in ([] if IS_PG else [
             "ALTER TABLE invoices ADD COLUMN original_due_date TEXT",
             "ALTER TABLE invoices ADD COLUMN latest_due_date TEXT",
             "ALTER TABLE invoices ADD COLUMN extension_count INTEGER DEFAULT 0",
@@ -74,13 +75,14 @@ def ensure_schema() -> None:
             "ALTER TABLE email_drafts ADD COLUMN scheduled_send_date TEXT",
             "ALTER TABLE email_drafts ADD COLUMN reviewed_by TEXT",
             "ALTER TABLE email_drafts ADD COLUMN reviewed_at TEXT",
-        ]:
+        ]):
             try:
                 conn.execute(stmt); conn.commit()
             except Exception:
                 pass
 
-        conn.executescript("""
+        if not IS_PG:
+            conn.executescript("""
             CREATE TABLE IF NOT EXISTS client_replies (
                 id                INTEGER PRIMARY KEY AUTOINCREMENT,
                 gmail_message_id  TEXT UNIQUE,
@@ -121,7 +123,7 @@ def ensure_schema() -> None:
             );
             CREATE INDEX IF NOT EXISTS idx_ptp_invoice ON ptp_events (invoice_id);
         """)
-        conn.commit()
+            conn.commit()
 
         # Back-fill original_due_date for existing invoices that predate v3.3.
         # ONLY on rows where it's still NULL — never overwrite an existing value.
@@ -516,7 +518,7 @@ def ingest_reply(conn, email: dict, today: date | None = None) -> dict:
 
     ai = extract_reply(sender, subject, body, today=today)
 
-    cur = conn.execute("""
+    reply_id = insert_returning_id(conn, """
         INSERT INTO client_replies
           (gmail_message_id, client_id, invoice_id, thread_id,
            subject, body, received_at,
@@ -526,7 +528,6 @@ def ingest_reply(conn, email: dict, today: date | None = None) -> dict:
           subject[:400], body[:4000], email.get("date", ""),
           ai.get("category"), ai.get("summary"),
           ai.get("promised_date"), float(ai.get("confidence") or 0)))
-    reply_id = cur.lastrowid
     conn.commit()
 
     result = {"stored": True, "reply_id": reply_id,
@@ -608,7 +609,8 @@ def _record_scan(result: dict) -> None:
     """Persist a scan result for the Tab-3 job-history panel."""
     with get_db(DB_PATH) as conn:
         # scan_history table — created lazily so old DBs don't break
-        conn.execute("""
+        if not IS_PG:
+            conn.execute("""
             CREATE TABLE IF NOT EXISTS scan_history (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
                 ran_at       TEXT DEFAULT (datetime('now','localtime')),

@@ -45,6 +45,8 @@ from datetime import datetime
 
 import streamlit as st
 
+from core.db import get_db as _get_db, IS_PG, insert_returning_id  # unified backend
+
 def _cfg(key: str, default: str = "") -> str:
     """Read config from the environment first, then Streamlit secrets.
     Streamlit Community Cloud keeps top-level secrets in st.secrets and does
@@ -70,39 +72,41 @@ LOCKOUT_WINDOW_SEC = 15 * 60
 
 
 # ---------------------------------------------------------------- database
-def _conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+def _conn():
+    """Open a DB connection via the unified layer (SQLite locally, Postgres/
+    Supabase when DATABASE_URL is set). Used as `with _conn() as c:` — it
+    auto-commits on success, like sqlite3's `with connection`."""
+    return _get_db(DB_PATH)
 
 
 def init_auth_db() -> None:
     with _conn() as c:
-        c.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS allowlist (
-                email      TEXT PRIMARY KEY,
-                role       TEXT NOT NULL DEFAULT 'member',   -- role granted on signup
-                added_by   TEXT,
-                added_at   TEXT
-            );
-            CREATE TABLE IF NOT EXISTS users (
-                email         TEXT PRIMARY KEY,
-                full_name     TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                salt          TEXT NOT NULL,
-                role          TEXT NOT NULL DEFAULT 'member',
-                status        TEXT NOT NULL DEFAULT 'active', -- active | disabled
-                created_at    TEXT,
-                last_login    TEXT
-            );
-            CREATE TABLE IF NOT EXISTS login_attempts (
-                email   TEXT,
-                ts      REAL,
-                success INTEGER
-            );
-            """
-        )
+        if not IS_PG:
+            c.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS allowlist (
+                    email      TEXT PRIMARY KEY,
+                    role       TEXT NOT NULL DEFAULT 'member',   -- role granted on signup
+                    added_by   TEXT,
+                    added_at   TEXT
+                );
+                CREATE TABLE IF NOT EXISTS users (
+                    email         TEXT PRIMARY KEY,
+                    full_name     TEXT NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    salt          TEXT NOT NULL,
+                    role          TEXT NOT NULL DEFAULT 'member',
+                    status        TEXT NOT NULL DEFAULT 'active', -- active | disabled
+                    created_at    TEXT,
+                    last_login    TEXT
+                );
+                CREATE TABLE IF NOT EXISTS login_attempts (
+                    email   TEXT,
+                    ts      REAL,
+                    success INTEGER
+                );
+                """
+            )
         # Bootstrap: guarantee the configured admin can always sign up.
         # Resolve at runtime (not just module import) so it works on Streamlit
         # Cloud, where secrets may not be in os.environ at import time.
@@ -222,8 +226,10 @@ def login(email: str, password: str) -> tuple[bool, str, dict | None]:
 def add_to_allowlist(email: str, role: str, added_by: str) -> None:
     with _conn() as c:
         c.execute(
-            "INSERT OR REPLACE INTO allowlist (email, role, added_by, added_at) "
-            "VALUES (?,?,?,?)",
+            "INSERT INTO allowlist (email, role, added_by, added_at) "
+            "VALUES (?,?,?,?) "
+            "ON CONFLICT(email) DO UPDATE SET "
+            "role=excluded.role, added_by=excluded.added_by, added_at=excluded.added_at",
             (email.lower().strip(), role, added_by, datetime.utcnow().isoformat()),
         )
 
@@ -250,6 +256,8 @@ def delete_user(email: str) -> None:
 
 # ---- password reset (admin-issued codes; no SMTP required) ----
 def _ensure_reset_table() -> None:
+    if IS_PG:
+        return
     with _conn() as c:
         c.execute(
             "CREATE TABLE IF NOT EXISTS password_resets ("
@@ -273,8 +281,11 @@ def issue_reset_code(email: str, issued_by: str) -> str:
         code = secrets.token_hex(4).upper()   # 8-char code
         salt = secrets.token_hex(16)
         c.execute(
-            "INSERT OR REPLACE INTO password_resets "
-            "(email, code_hash, salt, expires_at, issued_by) VALUES (?,?,?,?,?)",
+            "INSERT INTO password_resets "
+            "(email, code_hash, salt, expires_at, issued_by) VALUES (?,?,?,?,?) "
+            "ON CONFLICT(email) DO UPDATE SET "
+            "code_hash=excluded.code_hash, salt=excluded.salt, "
+            "expires_at=excluded.expires_at, issued_by=excluded.issued_by",
             (email, _hash_password(code, salt), salt,
              time.time() + 30 * 60, issued_by),
         )
