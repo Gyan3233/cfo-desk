@@ -777,15 +777,15 @@ def ptp_summary() -> dict:
                    AVG(p.days_extended) AS avg_days
               FROM ptp_events p
               JOIN clients c ON c.id = p.client_id
-             GROUP BY p.client_id
+             GROUP BY p.client_id, c.name
              ORDER BY total_days_extended DESC
              LIMIT 10
         """).fetchall()
         repeat_offenders = conn.execute("""
-            SELECT COUNT(DISTINCT client_id) FROM (
-                SELECT client_id, COUNT(*) AS n
-                  FROM ptp_events GROUP BY client_id HAVING n >= 3
-            )
+            SELECT COUNT(*) FROM (
+                SELECT client_id
+                  FROM ptp_events GROUP BY client_id HAVING COUNT(*) >= 3
+            ) AS sub
         """).fetchone()[0]
 
     return {

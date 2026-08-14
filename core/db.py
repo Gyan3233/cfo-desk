@@ -63,13 +63,15 @@ def _to_pg(sql: str) -> str:
         if "ON CONFLICT" not in sql.upper():
             sql = sql.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
     # date / time functions
-    sql = re.sub(r"datetime\(\s*'now'[^)]*\)", "now()", sql, flags=re.I)
+    sql = re.sub(r"datetime\(\s*'now'[^)]*\)", "now()::text", sql, flags=re.I)
     sql = re.sub(r"julianday\(\s*'now'\s*\)\s*-\s*julianday\(\s*([^)]+?)\s*\)",
                  r"(current_date - (\1)::date)", sql, flags=re.I)
     sql = re.sub(r"julianday\(\s*([^)]+?)\s*\)\s*-\s*julianday\(\s*'now'\s*\)",
                  r"((\1)::date - current_date)", sql, flags=re.I)
     sql = re.sub(r"date\(\s*'now'\s*\)", "current_date", sql, flags=re.I)
     sql = re.sub(r"\bdate\(\s*([^')][^)]*?)\s*\)", r"(\1)::date", sql, flags=re.I)
+    # SQLite's last_insert_rowid() -> Postgres lastval() (last serial value in session)
+    sql = re.sub(r"last_insert_rowid\(\s*\)", "lastval()", sql, flags=re.I)
     return sql
 
 
