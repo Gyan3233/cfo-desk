@@ -518,7 +518,7 @@ def render_tab1() -> None:
     from ai.analytics import (
         eight_week_forecast, fig_eight_week_forecast, action_queue,
         collection_effectiveness, fig_collection_effectiveness,
-        risk_cube_data, fig_risk_cube,
+        risk_cube_data, fig_risk_cube, filter_risk_cube, RISK_CUBE_METRICS,
         cash_projection, fig_cash_projection,
         derived_kpis,
     )
@@ -679,7 +679,31 @@ def render_tab1() -> None:
     if rc.empty:
         st.caption("_Not enough scored invoices to plot yet._")
     else:
-        st.plotly_chart(fig_risk_cube(rc), use_container_width=True)
+        total = len(rc)
+        fc1, fc2, fc3, fc4 = st.columns([1.1, 1.2, 0.9, 1.5])
+        with fc1:
+            view = st.radio("Show", ["Top N", "Bottom N", "All"],
+                            horizontal=True, key="rc_view",
+                            help="Focus on the highest- or lowest-risk clients by the chosen metric.")
+        with fc2:
+            metric_label = st.selectbox("Rank by", list(RISK_CUBE_METRICS.keys()),
+                                        index=0, key="rc_metric",
+                                        help="Which metric decides the Top / Bottom ranking.")
+        metric_col = RISK_CUBE_METRICS[metric_label]
+        mode = {"Top N": "Top", "Bottom N": "Bottom", "All": "All"}[view]
+        n = total
+        if mode != "All":
+            with fc3:
+                choices = [x for x in (10, 20, 50, 100) if x < total] + [total]
+                default = choices.index(20) if 20 in choices else 0
+                n = st.selectbox("How many", choices, index=default, key="rc_n",
+                                 format_func=lambda x: f"{'Top' if mode=='Top' else 'Bottom'} {x}")
+        rc_f = filter_risk_cube(rc, mode, n, metric_col)
+        with fc4:
+            st.caption(f"Showing **{len(rc_f)}** of {total} counterparties · "
+                       f"ranked by {metric_label.lower()}."
+                       + ("" if len(rc_f) <= 25 else "  Labels hidden above 25 — hover a sphere for details."))
+        st.plotly_chart(fig_risk_cube(rc_f), use_container_width=True)
 
     st.divider()
 

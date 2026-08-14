@@ -205,15 +205,41 @@ def risk_cube_data() -> pd.DataFrame:
     return cs
 
 
-def fig_risk_cube(df: pd.DataFrame) -> go.Figure:
+RISK_CUBE_METRICS = {
+    "Expected loss": "expected_loss",
+    "Open exposure": "outstanding",
+    "P(late)": "avg_p_late",
+    "Avg days past due": "avg_days_past_due",
+}
+
+
+def filter_risk_cube(df: pd.DataFrame, mode: str = "Top", n: int = 20,
+                     metric: str = "expected_loss") -> pd.DataFrame:
+    """Slice the risk-cube frame by a chosen metric.
+       mode='Top' → highest · 'Bottom' → lowest · 'All' → everything.
+       metric is a column name (expected_loss, outstanding, avg_p_late, avg_days_past_due)."""
+    if df.empty or mode == "All":
+        return df
+    col = metric if metric in df.columns else "expected_loss"
+    if col not in df.columns:
+        return df
+    d = df.sort_values(col, ascending=False)
+    n = max(1, int(n))
+    return d.tail(n) if mode == "Bottom" else d.head(n)
+
+
+def fig_risk_cube(df: pd.DataFrame, show_labels: bool | None = None) -> go.Figure:
     if df.empty:
         fig = go.Figure()
         fig.update_layout(**_layout("3D risk cube"))
         return fig
+    # Labels overlap badly past ~25 points — show them only for a focused set.
+    if show_labels is None:
+        show_labels = len(df) <= 25
     # Colour = expected loss (redder = worse)
     fig = go.Figure(data=[go.Scatter3d(
         x=df["outstanding"], y=df["avg_p_late"], z=df["avg_days_past_due"],
-        mode="markers+text",
+        mode=("markers+text" if show_labels else "markers"),
         marker=dict(
             size=np.clip(df["open_invoices"] * 1.5, 5, 30),
             color=df["expected_loss"],
